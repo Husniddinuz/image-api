@@ -50,6 +50,9 @@ make serve          # http://localhost:8000
 make queue          # in a second terminal: runs the compressor
 ```
 
+Then open **http://localhost:8000/docs** for Swagger UI: authorise once with a
+token and every endpoint below is callable from the browser.
+
 Requires PHP 8.3+ with `gd` (WebP enabled), `exif` and `fileinfo`.
 
 The API works without the queue worker running — uploads are simply served in
@@ -102,7 +105,11 @@ curl -s -X DELETE $BASE/images/{id} -H "Authorization: Bearer $TOKEN" -i
 All routes are prefixed with `/api`. Everything except register and login
 requires `Authorization: Bearer <token>`; without it the answer is `401`.
 
-The machine-readable contract is in [`openapi.yaml`](openapi.yaml).
+Browsable at **`/docs`** (Swagger UI), and machine-readable in
+[`openapi.yaml`](openapi.yaml) — the same file, served by the app rather than
+copied, so the page and the contract cannot drift. Its `servers` entry is
+rewritten to whichever host answered the request, so "Try it out" works behind a
+container port map or a tunnel. Set `API_DOCS_ENABLED=false` to turn the page off.
 
 ### `POST /auth/register`
 
@@ -329,7 +336,7 @@ compressor has run, which is what keeps the fast path fast.
 ## Tests
 
 ```bash
-make test        # 54 tests, 220 assertions
+make test        # 59 tests, 243 assertions
 ```
 
 Nothing is mocked away from the interesting parts: the suite encodes real PNGs
@@ -343,6 +350,7 @@ come back out.
 | `ImageOptimizationTest` | Real WebP re-encode shrinks the file, dimensions survive, the original is kept when re-encoding would grow it, the original file is cleaned up, a failed job leaves the image servable |
 | `ImageListingTest` | Only own images, newest first, cursor pagination, page-size cap |
 | `ImageRetrievalTest` | Metadata, real bytes with correct headers, `304` on `If-None-Match`, `private` caching, a foreign image being indistinguishable from a missing one |
+| `DocumentationTest` | Swagger UI renders, the spec is served as YAML, it describes every live route, and its server URL follows the host |
 | `BlobPathResolverTest` | Content-addressed path shapes: fan-out, no collisions, stability, configurable prefixes |
 | `ImageDeletionTest` | Deletion removes the file, a shared blob survives until its last owner leaves, deleting someone else's image is impossible, the sweeper's rules |
 
@@ -356,6 +364,7 @@ app/
 ├── Enums/BlobStatus.php
 ├── Http/
 │   ├── Controllers/Api/{AuthController,ImageController}.php
+│   ├── Controllers/DocsController.php          serves Swagger UI + the spec
 │   ├── Middleware/RejectOversizedUpload.php   413 before PHP eats the body
 │   ├── Requests/{Register,Login,StoreImage}Request.php
 │   └── Resources/ImageResource.php
@@ -370,6 +379,8 @@ app/
     ├── ImageOptimizer.php                  WebP re-encode with a fallback
     └── ImageDelivery.php                   streaming, ETags, signed URLs
 config/images.php                           every knob, documented
+config/docs.php                             Swagger UI toggle, path, pinned version
+openapi.yaml                                the contract /docs renders
 routes/api.php
 ```
 
@@ -421,3 +432,4 @@ overridable from `.env` (see `.env.example`). The ones worth knowing:
 | `IMAGES_MAX_PIXELS` / `IMAGES_MAX_SIDE` | `50M` / `20000` | Decompression-bomb guards |
 | `IMAGES_USE_TEMPORARY_URLS` | `false` | Redirect to signed S3 URLs instead of streaming |
 | `IMAGES_RATE_UPLOADS` | `240` | Uploads per minute per user |
+| `API_DOCS_ENABLED` / `API_DOCS_PATH` | `true` / `docs` | Swagger UI availability and mount point |

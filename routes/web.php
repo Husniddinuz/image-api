@@ -1,14 +1,24 @@
 <?php
 
+use App\Http\Controllers\DocsController;
 use Illuminate\Support\Facades\Route;
 
 /*
- * There is no web UI: this is an API-only application. The root route is a
- * pointer to the documented surface rather than a stray 404.
+ * This is an API-only application; the only pages it serves are its own docs.
+ * Swagger UI at /docs reads openapi.yaml straight from the repository root, and
+ * the root route is a pointer to the surface rather than a stray 404.
  */
+if (config('docs.enabled')) {
+    $path = trim((string) config('docs.path'), '/');
+
+    Route::get($path, [DocsController::class, 'index'])->name('docs.index');
+    Route::get($path.'/openapi.yaml', [DocsController::class, 'spec'])->name('docs.spec');
+}
+
 Route::get('/', fn () => response()->json([
     'name' => config('app.name'),
-    'documentation' => 'See README.md and openapi.yaml in the repository.',
+    'documentation' => 'Swagger UI at /docs; the raw contract is openapi.yaml.',
+    'documentation_ui' => config('docs.enabled') ? url(config('docs.path')) : null,
     'health' => url('/up'),
     'endpoints' => [
         'POST /api/auth/register',
