@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureJsonBodyIsParsable;
 use App\Http\Middleware\RejectOversizedUpload;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -21,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->api(prepend: [
             RejectOversizedUpload::class,
+            EnsureJsonBodyIsParsable::class,
         ]);
 
         $middleware->throttleApi('api');

@@ -326,6 +326,7 @@ compressor has run, which is what keeps the fast path fast.
 | Type spoofing | Four independent checks: client extension, extension implied by the sniffed mime, the sniffed mime itself, and `getimagesize()` on the decoded header. A PHP payload named `.png` with `Content-Type: image/png` is rejected |
 | Decompression bombs | Pixel-count and side-length caps applied *before* decoding — a 20 KB PNG that expands to gigabytes never reaches the decoder |
 | Oversized bodies | `Content-Length` is checked before parsing (`413`), Laravel validates the file at 5 MB (`422`), and php.ini backstops both |
+| Unparseable bodies | A malformed JSON body answers `400` naming the syntax error, rather than silently becoming an empty request that validation blames on the fields |
 | Serving user content | `X-Content-Type-Options: nosniff`, a locked-down CSP, and a sanitised `Content-Disposition` filename, so an upload can never be reinterpreted as markup |
 | Credential stuffing | 20 login attempts/min per IP and 5 per account, and the password hash is always verified — against a throwaway hash for unknown accounts — so timing cannot enumerate users |
 | Token handling | Sanctum personal access tokens, hashed at rest; logout revokes only the current one; expired tokens pruned daily |
@@ -336,7 +337,7 @@ compressor has run, which is what keeps the fast path fast.
 ## Tests
 
 ```bash
-make test        # 59 tests, 243 assertions
+make test        # 63 tests, 254 assertions
 ```
 
 Nothing is mocked away from the interesting parts: the suite encodes real PNGs
@@ -350,6 +351,7 @@ come back out.
 | `ImageOptimizationTest` | Real WebP re-encode shrinks the file, dimensions survive, the original is kept when re-encoding would grow it, the original file is cleaned up, a failed job leaves the image servable |
 | `ImageListingTest` | Only own images, newest first, cursor pagination, page-size cap |
 | `ImageRetrievalTest` | Metadata, real bytes with correct headers, `304` on `If-None-Match`, `private` caching, a foreign image being indistinguishable from a missing one |
+| `MalformedRequestTest` | A body that claims to be JSON but does not parse gets a `400` naming the syntax error, not a `422` blaming the fields |
 | `DocumentationTest` | Swagger UI renders, the spec is served as YAML, it describes every live route, and its server URL follows the host |
 | `BlobPathResolverTest` | Content-addressed path shapes: fan-out, no collisions, stability, configurable prefixes |
 | `ImageDeletionTest` | Deletion removes the file, a shared blob survives until its last owner leaves, deleting someone else's image is impossible, the sweeper's rules |
@@ -365,6 +367,7 @@ app/
 ├── Http/
 │   ├── Controllers/Api/{AuthController,ImageController}.php
 │   ├── Controllers/DocsController.php          serves Swagger UI + the spec
+│   ├── Middleware/EnsureJsonBodyIsParsable.php  400, not a puzzling 422
 │   ├── Middleware/RejectOversizedUpload.php   413 before PHP eats the body
 │   ├── Requests/{Register,Login,StoreImage}Request.php
 │   └── Resources/ImageResource.php
