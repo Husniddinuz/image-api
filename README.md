@@ -372,6 +372,40 @@ config/images.php                           every knob, documented
 routes/api.php
 ```
 
+## Trade-offs, and what would come next
+
+Decisions worth naming, because they were not free:
+
+- **Uploads are idempotent per (user, content).** Uploading the same bytes twice
+  returns your existing image rather than creating a second entry, which is what
+  "avoid duplication" asks for — at the cost of not being able to keep the same
+  picture under two names. Dropping the `(user_id, image_blob_id)` unique index
+  turns that around without touching anything else.
+- **`GET /images/{id}` returns metadata, not bytes.** The bytes live one level
+  down at `/content`. It keeps the list and the detail response shaped alike, and
+  lets a client see `width`, `bytes` and `status` before deciding to download.
+- **Deduplication is exact, not perceptual.** A re-saved or cropped copy of a
+  photo is a different file and is stored again. Perceptual hashing (pHash) would
+  catch those, but "visually similar" is a judgement call, and silently
+  collapsing two images a user considers distinct is worse than storing both.
+- **Compression is asynchronous**, so a freshly uploaded image is briefly served
+  in its original format. The alternative — holding the request for ~575 ms —
+  costs an order of magnitude in upload throughput.
+
+With more time, in the order I would do it:
+
+1. **Chunked / resumable uploads** (tus) so a dropped mobile connection does not
+   restart a 5 MB upload.
+2. **A CDN in front of `/content`**, keyed on the content digest. The bytes are
+   already immutable and content addressed, so this is configuration rather than
+   code.
+3. **Malware scanning** (ClamAV) in the same queue as compression — cheap to add
+   once uploads already pass through a worker.
+4. **Thumbnails**, derived in the same job and stored as sibling blobs under the
+   same digest.
+5. **Backfill tooling**: re-encoding existing blobs when the quality target or
+   format changes, resumable and rate limited.
+
 ## Configuration
 
 `config/images.php` is the single place where behaviour is tuned; each option is

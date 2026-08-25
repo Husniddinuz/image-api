@@ -1,0 +1,16 @@
+.git
+.github
+vendor
+node_modules
+storage/logs/*.log
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+database/*.sqlite*
+.env
+.phpunit.cache
+.phpunit.result.cache
+tests
+
+# Built from the local (dev) dependency set; regenerated inside the image.
+bootstrap/cache/*.php

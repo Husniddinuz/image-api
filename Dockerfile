@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 
 ###############################################################################
-# Dependencies -- resolved in their own stage so application changes do not
-# invalidate the Composer cache.
+# Dependencies -- resolved in their own stage so that editing application code
+# does not invalidate the Composer cache.
 ###############################################################################
 FROM composer:2 AS vendor
 
@@ -17,13 +17,17 @@ RUN composer install \
         --prefer-dist \
         --no-interaction
 
+COPY . .
+
+RUN composer dump-autoload --optimize --no-dev --no-interaction
+
 ###############################################################################
 # Runtime
 ###############################################################################
 FROM dunglas/frankenphp:1-php8.4 AS runtime
 
 # gd is built with WebP and AVIF so the optimizer has every target format;
-# pcntl lets queue workers handle SIGTERM instead of being killed mid-job.
+# pcntl lets queue workers handle SIGTERM instead of dying mid-job.
 RUN install-php-extensions \
         gd \
         exif \
@@ -31,7 +35,6 @@ RUN install-php-extensions \
         pdo_pgsql \
         pdo_mysql \
         redis \
-        intl \
         zip \
         opcache
 
@@ -41,11 +44,15 @@ RUN chmod +x /usr/local/bin/entrypoint
 
 WORKDIR /app
 
-COPY --from=vendor /app/vendor ./vendor
 COPY . .
+COPY --from=vendor /app/vendor ./vendor
 
-RUN composer dump-autoload --optimize --no-dev --no-interaction \
-    && mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cache \
+RUN mkdir -p storage/framework/cache/data \
+             storage/framework/sessions \
+             storage/framework/views \
+             storage/app/private \
+             storage/logs \
+             bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache
 
 ENV SERVER_NAME=:8000
