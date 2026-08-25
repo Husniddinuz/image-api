@@ -337,7 +337,7 @@ compressor has run, which is what keeps the fast path fast.
 ## Tests
 
 ```bash
-make test        # 63 tests, 254 assertions
+make test        # 65 tests, 262 assertions
 ```
 
 Nothing is mocked away from the interesting parts: the suite encodes real PNGs
@@ -346,7 +346,7 @@ come back out.
 
 | Suite | Covers |
 | --- | --- |
-| `AuthenticationTest` | Registration, login, token lifetime, per-token logout, no user enumeration, every private route rejecting anonymous callers |
+| `AuthenticationTest` | Registration, login, token lifetime, per-token logout, no user enumeration, every private route rejecting anonymous callers — including browser-style requests, which get a `401` rather than a redirect to a login page this API does not have |
 | `ImageUploadTest` | Happy paths, GIF/SVG/text refused, a text file disguised as a PNG refused, 5 MB limit, `413` on a huge body, dedup within and across users, queueing behaviour |
 | `ImageOptimizationTest` | Real WebP re-encode shrinks the file, dimensions survive, the original is kept when re-encoding would grow it, the original file is cleaned up, a failed job leaves the image servable |
 | `ImageListingTest` | Only own images, newest first, cursor pagination, page-size cap |

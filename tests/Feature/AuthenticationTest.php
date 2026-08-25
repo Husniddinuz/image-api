@@ -90,6 +90,34 @@ class AuthenticationTest extends TestCase
         $this->deleteJson('/api/images/01HZZZZZZZZZZZZZZZZZZZZZZZ')->assertUnauthorized();
     }
 
+    /**
+     * A browser does not send Accept: application/json. The framework's default
+     * would redirect such a guest to a login page this API does not have, which
+     * surfaced as a 500 ("Route [login] not defined") rather than a 401.
+     */
+    public function test_a_browser_style_request_is_refused_with_401_not_a_redirect(): void
+    {
+        $headers = [
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'User-Agent' => 'Mozilla/5.0',
+        ];
+
+        foreach (['/api/images', '/api/auth/me', '/api/images/01HZZZZZZZZZZZZZZZZZZZZZZZ/content'] as $url) {
+            $this->withHeaders($headers)->get($url)
+                ->assertStatus(401)
+                ->assertJson(['message' => 'Unauthenticated.']);
+        }
+    }
+
+    public function test_a_browser_style_request_with_a_bad_token_is_also_a_401(): void
+    {
+        $this->withHeaders(['Accept' => 'text/html'])
+            ->withToken('not-a-real-token')
+            ->get('/api/auth/me')
+            ->assertStatus(401)
+            ->assertJson(['message' => 'Unauthenticated.']);
+    }
+
     public function test_an_invalid_token_is_rejected(): void
     {
         $this->withToken('definitely-not-a-real-token')

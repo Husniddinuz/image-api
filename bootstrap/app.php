@@ -25,6 +25,14 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsureJsonBodyIsParsable::class,
         ]);
 
+        // There is no login page to bounce a guest to. The skeleton's default
+        // is redirectGuestsTo(route('login')), which the auth middleware
+        // evaluates before the exception handler ever sees the request -- so
+        // any caller that does not announce Accept: application/json (a browser
+        // opening an image URL, say) got a 500 naming a route that will never
+        // exist, instead of a 401.
+        $middleware->redirectGuestsTo(fn () => null);
+
         $middleware->throttleApi('api');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
