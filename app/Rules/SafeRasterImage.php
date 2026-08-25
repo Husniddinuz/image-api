@@ -2,6 +2,7 @@
 
 namespace App\Rules;
 
+use App\Support\UploadFailure;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Http\UploadedFile;
@@ -21,8 +22,14 @@ class SafeRasterImage implements ValidationRule
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        if (! $value instanceof UploadedFile || ! $value->isValid()) {
-            $fail('The :attribute failed to upload.');
+        if (! $value instanceof UploadedFile) {
+            $fail('The :attribute must be an uploaded file.');
+
+            return;
+        }
+
+        if (! $value->isValid()) {
+            $fail(UploadFailure::describe($value));
 
             return;
         }

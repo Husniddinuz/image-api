@@ -58,9 +58,20 @@ Requires PHP 8.3+ with `gd` (WebP enabled), `exif` and `fileinfo`.
 The API works without the queue worker running — uploads are simply served in
 their original format and stay `"status": "pending"` until a worker picks them up.
 
-> **php.ini** — `upload_max_filesize` and `post_max_size` must be ≥ 6 MB.
-> Below that PHP discards the request body before Laravel can see it. The
-> Docker image sets this already.
+> **php.ini matters here.** Three directives decide whether the API can honour
+> its own 5 MB limit, and when they are wrong the failure looks like an
+> application bug:
+>
+> ```ini
+> upload_max_filesize = 6M    ; below 5M, valid uploads are rejected before validation
+> post_max_size       = 8M    ; must exceed upload_max_filesize (multipart framing)
+> display_errors      = Off   ; on, PHP prints warnings *in front of* the JSON body
+> ```
+>
+> Run `make doctor` (`php artisan images:doctor`) to check the running
+> environment — it reports each of these, the image encoders, the storage disk
+> and the queue, and exits non-zero if the API cannot behave as documented.
+> The Docker image is configured correctly already.
 
 ### Docker (PostgreSQL + Redis + workers)
 
@@ -325,7 +336,7 @@ compressor has run, which is what keeps the fast path fast.
 | Cross-account access | Every lookup is `Image::ownedBy($user)->findOrFail()`; a foreign id 404s exactly like a missing one, so the API never confirms that another user's image exists |
 | Type spoofing | Four independent checks: client extension, extension implied by the sniffed mime, the sniffed mime itself, and `getimagesize()` on the decoded header. A PHP payload named `.png` with `Content-Type: image/png` is rejected |
 | Decompression bombs | Pixel-count and side-length caps applied *before* decoding — a 20 KB PNG that expands to gigabytes never reaches the decoder |
-| Oversized bodies | `Content-Length` is checked before parsing (`413`), Laravel validates the file at 5 MB (`422`), and php.ini backstops both |
+| Oversized bodies | `Content-Length` is checked before parsing (`413`), Laravel validates the file at 5 MB (`422`), and php.ini backstops both — all three answer with the same sentence, so a client need not tell them apart |
 | Unparseable bodies | A malformed JSON body answers `400` naming the syntax error, rather than silently becoming an empty request that validation blames on the fields |
 | Serving user content | `X-Content-Type-Options: nosniff`, a locked-down CSP, and a sanitised `Content-Disposition` filename, so an upload can never be reinterpreted as markup |
 | Credential stuffing | 20 login attempts/min per IP and 5 per account, and the password hash is always verified — against a throwaway hash for unknown accounts — so timing cannot enumerate users |
@@ -337,7 +348,7 @@ compressor has run, which is what keeps the fast path fast.
 ## Tests
 
 ```bash
-make test        # 65 tests, 262 assertions
+make test        # 70 tests, 278 assertions
 ```
 
 Nothing is mocked away from the interesting parts: the suite encodes real PNGs
@@ -351,6 +362,7 @@ come back out.
 | `ImageOptimizationTest` | Real WebP re-encode shrinks the file, dimensions survive, the original is kept when re-encoding would grow it, the original file is cleaned up, a failed job leaves the image servable |
 | `ImageListingTest` | Only own images, newest first, cursor pagination, page-size cap |
 | `ImageRetrievalTest` | Metadata, real bytes with correct headers, `304` on `If-None-Match`, `private` caching, a foreign image being indistinguishable from a missing one |
+| `UploadLimitTest` | Oversize bodies get one consistent `413` with no stack trace, a server-side size limit is reported as such rather than as a broken image, and the doctor covers the running environment |
 | `MalformedRequestTest` | A body that claims to be JSON but does not parse gets a `400` naming the syntax error, not a `422` blaming the fields |
 | `DocumentationTest` | Swagger UI renders, the spec is served as YAML, it describes every live route, and its server URL follows the host |
 | `BlobPathResolverTest` | Content-addressed path shapes: fan-out, no collisions, stability, configurable prefixes |
@@ -362,6 +374,7 @@ come back out.
 
 ```
 app/
+├── Console/Commands/CheckEnvironment.php   images:doctor — php.ini vs. advertised limits
 ├── Console/Commands/PruneOrphanBlobs.php   images:prune — safety net for lost jobs
 ├── Enums/BlobStatus.php
 ├── Http/
@@ -376,6 +389,7 @@ app/
 │   └── PruneImageBlob.php                  reference-counted deletion
 ├── Models/{User,Image,ImageBlob}.php
 ├── Rules/SafeRasterImage.php               real decode + bomb guards
+├── Support/UploadFailure.php               says which server limit bit, not "failed"
 └── Services/Images/
     ├── BlobPathResolver.php                content-addressed, fanned-out paths
     ├── ImageIngestor.php                   the upload fast path

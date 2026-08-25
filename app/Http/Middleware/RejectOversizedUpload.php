@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\UploadFailure;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -25,10 +26,7 @@ class RejectOversizedUpload
 
         if ($length > $ceiling) {
             return response()->json([
-                'message' => sprintf(
-                    'The uploaded file may not be larger than %s MB.',
-                    round($limitBytes / 1048576, 2),
-                ),
+                'message' => UploadFailure::tooLarge(),
             ], Response::HTTP_REQUEST_ENTITY_TOO_LARGE);
         }
 

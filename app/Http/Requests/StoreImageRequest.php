@@ -3,7 +3,9 @@
 namespace App\Http\Requests;
 
 use App\Rules\SafeRasterImage;
+use App\Support\UploadFailure;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rules\File;
 
 class StoreImageRequest extends FormRequest
@@ -32,7 +34,14 @@ class StoreImageRequest extends FormRequest
     {
         $mb = round(((int) config('images.max_upload_kilobytes')) / 1024, 2);
 
+        $file = $this->file('image');
+
         return [
+            // The framework's own "uploaded" rule fires before any custom rule,
+            // so the explanation has to be attached to its message too.
+            'image.uploaded' => $file instanceof UploadedFile && ! $file->isValid()
+                ? UploadFailure::describe($file)
+                : 'The image failed to upload.',
             'image.required' => 'An image file is required under the "image" field.',
             'image.max' => "The image may not be larger than {$mb} MB.",
             'image.mimetypes' => 'Only PNG and JPEG images are accepted.',

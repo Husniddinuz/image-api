@@ -2,15 +2,16 @@
 
 use App\Http\Middleware\EnsureJsonBodyIsParsable;
 use App\Http\Middleware\RejectOversizedUpload;
+use App\Support\UploadFailure;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
-use Symfony\Component\HttpKernel\Exception\PostTooLargeException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -40,12 +41,14 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
 
-        // A body larger than post_max_size still reaches us as an exception on
-        // some SAPIs; answer with the same honest status either way.
+        // PHP discards a body larger than post_max_size before the framework
+        // boots, and ValidatePostSize turns that into this exception. Note the
+        // class is Laravel's own, not Symfony's -- they are unrelated types,
+        // and catching the wrong one leaks a stack trace instead of a 413.
         $exceptions->render(function (PostTooLargeException $e, Request $request) {
             if ($request->is('api/*')) {
                 return response()->json([
-                    'message' => 'The uploaded file is too large.',
+                    'message' => UploadFailure::tooLarge(),
                 ], Response::HTTP_REQUEST_ENTITY_TOO_LARGE);
             }
         });

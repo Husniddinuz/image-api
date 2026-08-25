@@ -1,4 +1,4 @@
-.PHONY: setup serve test lint queue fresh up down logs shell
+.PHONY: setup serve test lint queue fresh doctor up down logs shell
 
 ## Local (no Docker): install, prepare .env, migrate
 setup:
@@ -7,6 +7,11 @@ setup:
 	@php artisan key:generate --ansi
 	@touch database/database.sqlite
 	php artisan migrate
+	@php artisan images:doctor || true
+
+## Verify PHP and storage can serve the API as advertised
+doctor:
+	php artisan images:doctor
 
 serve:
 	php artisan serve
