@@ -1,0 +1,81 @@
+name: image-api
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile
+  environment: &app-env
+    APP_ENV: local
+    APP_DEBUG: "true"
+    APP_URL: http://localhost:8000
+    DB_CONNECTION: pgsql
+    DB_HOST: postgres
+    DB_PORT: 5432
+    DB_DATABASE: images
+    DB_USERNAME: images
+    DB_PASSWORD: secret
+    # Redis for the queue keeps upload latency off the database, which is the
+    # first thing to buckle at 100k+ jobs/day.
+    QUEUE_CONNECTION: redis
+    CACHE_STORE: redis
+    SESSION_DRIVER: redis
+    REDIS_HOST: redis
+    IMAGES_DISK: local
+  volumes:
+    - images:/app/storage/app/private
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
+services:
+  app:
+    <<: *app
+    ports:
+      - "8000:8000"
+
+  # Compression happens here, not in the request. Scale with
+  # `docker compose up -d --scale worker=4`.
+  worker:
+    <<: *app
+    environment:
+      <<: *app-env
+      RUN_MIGRATIONS: "false"
+    command: php artisan queue:work redis --queue=images,default --tries=3 --max-time=3600 --sleep=1
+    ports: []
+
+  scheduler:
+    <<: *app
+    environment:
+      <<: *app-env
+      RUN_MIGRATIONS: "false"
+    command: php artisan schedule:work
+    ports: []
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: images
+      POSTGRES_USER: images
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U images -d images"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "55432:5432"
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis:/data
+
+volumes:
+  images:
+  postgres:
+  redis:
