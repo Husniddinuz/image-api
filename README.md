@@ -329,7 +329,7 @@ compressor has run, which is what keeps the fast path fast.
 ## Tests
 
 ```bash
-make test        # 49 tests, 215 assertions
+make test        # 54 tests, 220 assertions
 ```
 
 Nothing is mocked away from the interesting parts: the suite encodes real PNGs
@@ -343,6 +343,7 @@ come back out.
 | `ImageOptimizationTest` | Real WebP re-encode shrinks the file, dimensions survive, the original is kept when re-encoding would grow it, the original file is cleaned up, a failed job leaves the image servable |
 | `ImageListingTest` | Only own images, newest first, cursor pagination, page-size cap |
 | `ImageRetrievalTest` | Metadata, real bytes with correct headers, `304` on `If-None-Match`, `private` caching, a foreign image being indistinguishable from a missing one |
+| `BlobPathResolverTest` | Content-addressed path shapes: fan-out, no collisions, stability, configurable prefixes |
 | `ImageDeletionTest` | Deletion removes the file, a shared blob survives until its last owner leaves, deleting someone else's image is impossible, the sweeper's rules |
 
 ---
