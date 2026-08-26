@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ config('app.name') }} — API reference</title>
+    <title>{{ config('app.name') }} — справочник API</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="{{ $assets }}/swagger-ui.css">
     <style>
